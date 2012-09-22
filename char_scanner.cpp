@@ -1,31 +1,72 @@
 #include "char_scanner.hpp"
 
 #include <QQueue>
-#include <QDebug>
 #include <QSettings>
 #include <QBuffer>
 
-/*void blit0(QImage& target, const QImage& src, QPoint offset)
+bool findPoint(const QImage& src, QPoint& res, const QPointF& from, const QPointF& to)
 {
-  for (int y = 0; y < src.height(); ++y)
-    for (int x = 0; x < src.width(); ++x)
-      if (src.pixelIndex(x, y) == 0)
-        target.setPixel(offset.x() + x, offset.y() + y, 0);
-}*/
+  const QPointF v = to - from;
+  const float len = std::sqrt(v.x()*v.x() + v.y()*v.y());
+  const QPointF d = v / len;
 
-/*bool operator<(const QImage& a, const QImage& b)
+  QPointF p(from);
+  for (int i = 0; i < len; ++i) {
+    int x = p.x();
+    int y = p.y();
+    if (src.valid(x, y) && src.pixelIndex(x, y) <= 127) {
+      res.setX(x);
+      res.setY(y);
+      return true;
+    }
+    p += d;
+  }
+  return false;
+}
+
+void drawLine(QImage& target, QPoint p1, QPoint p2)
 {
-  const QSize as = a.size();
-  const QSize bs = b.size();
-  if (as == bs) {
-    return memcmp(a.bits(), b.bits(), a.bytesPerLine() * a.height()) < 0;
-  } else {
-    return as.width() == bs.width() ? as.height() < bs.height() : as.width() < bs.width();
+  const QPoint v = p2 - p1;
+  const float len = std::sqrt(v.x()*v.x() + v.y()*v.y());
+  const QPointF d(v.x() / len, v.y() / len);
+  QPointF p(p1);
+  for (int i = 0; i < len; ++i) {
+    target.setPixel(p.toPoint(), 0);
+    p += d;
   }
 }
-*/
 
-QMap<QByteArray, QPair<QString, bool>> s_cache;
+QImage convexHull(QImage src)
+{
+  const int steps = 100;
+  const float r = 2.0f * M_PI / steps;
+  float w = src.width() * 0.5f, h = src.height() * 0.5f;
+  const float radius = std::sqrt(w * w + h * h);
+
+  bool first = true;
+  QPoint firstPoint;
+  QPoint prev;
+
+  for (int i = 0; i <= steps; ++i) {
+    const float rads = r * i;
+    float c = std::cos(rads);
+    float s = std::sin(rads);
+    QPoint p;
+    if (findPoint(src, p, QPointF(w - c * radius, h - s * radius), QPointF(w, h))) {
+      if (first) {
+        first = false;
+        firstPoint = p;
+      } else {
+        drawLine(src, prev, p);
+        prev = p;
+      }
+    }
+  }
+  drawLine(src, prev, firstPoint);
+  return src;
+}
+
+static QMap<QByteArray, QPair<QString, bool>> s_cache;
 
 void cacheLoad()
 {
@@ -82,39 +123,29 @@ QVector<CharScanner::Char>& CharScanner::chars()
 
 void CharScanner::scan()
 {
-  const int s_space[] = { 10, 8 };
+  const int s_space[] = { 11, 8 };
 
   m_chars.clear();
-  //QVector<bool> foundEdge(m_image.height(), false);
-  for (int x = 0; x < m_image.width();) {
+  for (int x = 0; x < m_image.width(); ++x) {
     for (int y = 0; y < m_image.height(); ++y) {
-      bool center = m_image.pixelIndex(x, y) > 127;
-      /*bool edge = m_image.pixelIndex(x, y) <= 127;
-      if (foundEdge[y] && !edge) {*/
-      if (center) {
-        // found character center, scan character
-        try {
-          qDebug() << "Scanning";
-          Char chr = scanChar(QPoint(x, y));
-          chr.search();
-          qDebug() << "Got:" << chr.text();
-          if (!m_chars.isEmpty() && m_chars.last().text() != " ") {
-            int space = chr.left() - m_chars.last().right();
-            if (space > (m_chars.last().italic() ? s_space[1] : s_space[0]))
-              m_chars << Char(" ", space > s_space[0]);
-          }
-          m_chars << chr;
-          x = chr.rect().right() + 1;
-          break;
-        } catch (...) {
-          // we were outside or too small img etc
-          //foundEdge[y] = false;
+      if (m_image.pixelIndex(x, y) <= 127)
+        continue;
+      // found character center, scan character
+      try {
+        Char chr = scanChar(QPoint(x, y));
+        chr.search();
+        if (!m_chars.isEmpty() && m_chars.last().text() != " ") {
+          int space = chr.left() - m_chars.last().right();
+          if (space > (m_chars.last().italic() ? s_space[1] : s_space[0]))
+            m_chars << Char(" ", space > s_space[0]);
         }
-      /*} else if (!foundEdge[y] && edge) {
-        foundEdge[y] = true;*/
+        m_chars << chr;
+        x = chr.rect().right() + 1;
+        break;
+      } catch (...) {
+        // we were outside or too small img etc
       }
     }
-    ++x;
   }
 }
 
@@ -153,25 +184,24 @@ CharScanner::Char CharScanner::scanChar(QPoint p)
 
   if (rect.top() > s_padding) {
     QRect tmp = selectRect(target, rect, rect.top(), rect.top() + s_neighborhood);
-    qDebug() << rect << s_padding << tmp;
     if (!tmp.isEmpty())
       mergeScan(target, rect, QRect(tmp.left(), rect.top()-s_padding,
                                     tmp.width(), s_padding));
   }
 
   if (rect.height() < m_image.height() * 0.8f && rect.bottom() + s_padding < target.rect().bottom()) {
-    qDebug() << "low!";
     QRect tmp = selectRect(target, rect, rect.bottom() - s_neighborhood, rect.bottom());
     if (!tmp.isEmpty())
       mergeScan(target, rect, QRect(tmp.left(), rect.bottom(),
                                     tmp.width(), s_padding));
   }
 
-  QRect tmp = selectRect(target, rect, target.height() * 0.4, target.height() * 0.6);
+  const QImage cropped = target.copy(rect);
+  QRect tmp = selectRect(convexHull(cropped), cropped.rect(), cropped.height() * 0.4, cropped.height() * 0.6);
   if (tmp.isEmpty()) {
-    return Char(target.copy(rect), rect, rect.left(), rect.right());
+    return Char(cropped, rect, rect.left(), rect.right());
   } else {
-    return Char(target.copy(rect), rect, tmp.left(), tmp.right());
+    return Char(cropped, rect, rect.left() + tmp.left(), rect.left() + tmp.right());
   }
 }
 
@@ -200,9 +230,6 @@ void CharScanner::floodFill(QImage& target, QRect& rect, QPoint p)
 
   while (!q.isEmpty()) {
     p = q.dequeue();
-
-/*    if (p.y() == 0 || p.y() == target.height()-1)
-      throw "outside";*/
 
     if (target.pixelIndex(p) == 0)
       continue;
@@ -242,21 +269,6 @@ CharScanner::Char::Char(const QImage& image, const QRect& rect, int left, int ri
   buffer.open(QBuffer::WriteOnly);
   m_image.save(&buffer, "PNG");
 }
-/*
-CharScanner::Char::Char(const QImage& image, const QRect& rect, const Char& merged)
-{
-  m_rect = rect.united(merged.rect());
-  m_image = QImage(m_rect.width(), m_rect.height(), QImage::Format_Indexed8);
-  m_image.setColorTable(image.colorTable());
-  memset(m_image.bits(), 255, m_image.bytesPerLine() * m_image.height());
-
-  blit0(m_image, image, rect.topLeft() - m_rect.topLeft());
-  blit0(m_image, merged.m_image, merged.rect().topLeft() - m_rect.topLeft());
-
-  QBuffer buffer(&m_cacheKey);
-  buffer.open(QBuffer::WriteOnly);
-  m_image.save(&buffer, "PNG");
-}*/
 
 CharScanner::Char::Char(const QString& text, bool italic)
   : m_text(text),
@@ -272,6 +284,10 @@ bool CharScanner::Char::search()
     auto p = cacheGet(m_cacheKey);
     m_text = p.first;
     m_italic = p.second;
+    /*if (!m_text.isEmpty() && !m_italic) {
+      m_left = m_rect.left();
+      m_right = m_rect.right();
+    }*/
   }
   return !m_text.isEmpty();
 }

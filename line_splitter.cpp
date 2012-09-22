@@ -1,7 +1,5 @@
 #include "line_splitter.hpp"
 
-#include <QDebug>
-
 namespace LineSplitter
 {
   QList<QImage> split(const QImage& img)
@@ -30,9 +28,38 @@ namespace LineSplitter
       for (; y < img.height() && !emptyLines[y]; ++y)
         ++height;
       r.setHeight(height);
-      // qDebug() << r;
-      lines << img.copy(r);
+
+      if (height > 65 && height < 75) {
+        lines += splitPath(img.copy(r));
+      } else {
+        lines << img.copy(r);
+      }
     }
     return lines;
+  }
+
+  QList<QImage> splitPath(const QImage& img)
+  {
+    QImage up = img;
+    QImage down = img;
+    for (int x = 0; x < img.width(); ++x) {
+      bool found = false;
+      for (int i = 1; i < 10; ++i) {
+        int y = img.height() / 2 + i / 2 * ((i%2) ? 1 : -1);
+        if (img.pixelIndex(x, y) <= 127) {
+          for (int z = 0; z < y; ++z)
+            down.setPixel(x, z, 0);
+          for (int z = y+1; z < up.height(); ++z)
+            up.setPixel(x, z, 0);
+          found = true;
+          break;
+        }
+      }
+      if (!found) {
+        return QList<QImage>() << img;
+      }
+    }
+
+    return QList<QImage>() << split(up) << split(down);
   }
 }

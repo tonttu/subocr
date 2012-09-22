@@ -53,7 +53,6 @@ void MainWindow::process()
 {
   for (int i = 0; i < m_files.size(); ++i) {
     emit currentFile(m_files[i]);
-    qDebug() << m_files[i];
     QImage img(m_files[i]);
     if (img.isNull()) {
       emit logError(QString("Failed to open %1\n").arg(m_files[i]));
@@ -64,6 +63,13 @@ void MainWindow::process()
       QString text = process(img);
       if (m_aborting)
         return;
+
+      QFile txtFile(m_files[i] + ".txt");
+      if (txtFile.open(QFile::WriteOnly)) {
+        txtFile.write(text.toUtf8().data());
+      } else {
+        emit logError(QString("Failed to open %1: %s2\n").arg(txtFile.fileName(), txtFile.errorString()));
+      }
     }
     emit progress(i+1);
   }
@@ -119,7 +125,6 @@ QString MainWindow::process(const QImage& img)
 
     output += text+"\n";
   }
-  qDebug() << output;
   return output;
 }
 

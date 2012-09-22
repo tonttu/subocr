@@ -7,6 +7,7 @@
 namespace LineSplitter
 {
   QList<QImage> split(const QImage& img);
+  QList<QImage> splitPath(const QImage& img);
 }
 
 #endif // LINE_SPLITTER_HPP
