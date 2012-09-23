@@ -123,7 +123,7 @@ QVector<CharScanner::Char>& CharScanner::chars()
 
 void CharScanner::scan()
 {
-  const int s_space[] = { 11, 8 };
+  const int s_space[] = { 9, 8 };
 
   m_chars.clear();
   for (int x = 0; x < m_image.width(); ++x) {
@@ -191,9 +191,15 @@ CharScanner::Char CharScanner::scanChar(QPoint p)
 
   if (rect.height() < m_image.height() * 0.8f && rect.bottom() + s_padding < target.rect().bottom()) {
     QRect tmp = selectRect(target, rect, rect.bottom() - s_neighborhood, rect.bottom());
-    if (!tmp.isEmpty())
+    if (!tmp.isEmpty()) {
+      // colon etc
+      int padding = s_padding;
+      if (rect.height() < m_image.height() * 0.2f) {
+        padding = target.rect().bottom() - rect.bottom() - 4;
+      }
       mergeScan(target, rect, QRect(tmp.left(), rect.bottom(),
-                                    tmp.width(), s_padding));
+                                    tmp.width(), padding));
+    }
   }
 
   const QImage cropped = target.copy(rect);
@@ -284,10 +290,10 @@ bool CharScanner::Char::search()
     auto p = cacheGet(m_cacheKey);
     m_text = p.first;
     m_italic = p.second;
-    /*if (!m_text.isEmpty() && !m_italic) {
+    if (!m_text.isEmpty() && !m_italic) {
       m_left = m_rect.left();
       m_right = m_rect.right();
-    }*/
+    }
   }
   return !m_text.isEmpty();
 }

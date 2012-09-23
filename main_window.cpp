@@ -68,7 +68,7 @@ void MainWindow::process()
       if (txtFile.open(QFile::WriteOnly)) {
         txtFile.write(text.toUtf8().data());
       } else {
-        emit logError(QString("Failed to open %1: %s2\n").arg(txtFile.fileName(), txtFile.errorString()));
+        emit logError(QString("Failed to open '%1': %s2\n").arg(txtFile.fileName(), txtFile.errorString()));
       }
     }
     emit progress(i+1);
@@ -123,9 +123,46 @@ QString MainWindow::process(const QImage& img)
       text += it->text();
     }
 
-    output += text+"\n";
+    output += postProcess(text)+"\n";
   }
   return output;
+}
+
+QString MainWindow::postProcess(const QString& in)
+{
+  static bool once = false;
+  static bool beginning = true;
+  static QRegExp endR("[.!?]\"?$", Qt::CaseSensitive, QRegExp::RegExp2);
+
+  static QList<QPair<QRegExp, QString>> s_rules;
+  if (!once) {
+    QFile file("renames.txt");
+    if (file.open(QFile::ReadOnly)) {
+      QStringList rules = QString::fromUtf8(file.readAll().data()).split(QRegExp("[\r\n]+"), QString::SkipEmptyParts);
+      foreach (const QString& rule, rules) {
+        QStringList tmp = rule.split('\t');
+        if (tmp.size() == 2) {
+          s_rules << qMakePair(QRegExp(tmp[0], Qt::CaseSensitive, QRegExp::RegExp2), tmp[1]);
+        } else {
+          emit logError(QString("Invalid rule '%1' in regexp rules file '%1'\n").arg(rule, file.fileName()));
+        }
+      }
+    } else {
+      emit logError(QString("Failed to open regexp rules file '%1': %2\n").arg(file.fileName(), file.errorString()));
+    }
+    once = true;
+  }
+
+  QString out = in;
+  for (auto it = s_rules.begin(); it != s_rules.end(); ++it) {
+    out.replace(it->first, it->second);
+  }
+
+  if (beginning && out.startsWith('l'))
+    out.replace(0, 1, 'I');
+
+  beginning = endR.indexIn(out) >= 0;
+  return out;
 }
 
 void MainWindow::logErrorSlot(const QString& msg)

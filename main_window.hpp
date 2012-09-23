@@ -31,6 +31,7 @@ private:
   QImage convertImage(const QImage& img);
   void process();
   QString process(const QImage& img);
+  QString postProcess(const QString& in);
 
 private slots:
   void logErrorSlot(const QString& msg);
