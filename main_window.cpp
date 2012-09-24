@@ -6,6 +6,21 @@
 #include <QtConcurrentRun>
 #include <QPainter>
 #include <QPixmap>
+#include <QDir>
+
+QString findFile(const QString& file)
+{
+  if (QFile::exists(file))
+    return file;
+
+  QDir dir(QCoreApplication::applicationDirPath());
+  do {
+    if (dir.exists(file))
+      return dir.filePath(file);
+  } while (dir.cdUp());
+
+  return file;
+}
 
 MainWindow::MainWindow(QWidget* parent) :
   QMainWindow(parent),
@@ -136,7 +151,7 @@ QString MainWindow::postProcess(const QString& in)
 
   static QList<QPair<QRegExp, QString>> s_rules;
   if (!once) {
-    QFile file("renames.txt");
+    QFile file(findFile("renames.txt"));
     if (file.open(QFile::ReadOnly)) {
       QStringList rules = QString::fromUtf8(file.readAll().data()).split(QRegExp("[\r\n]+"), QString::SkipEmptyParts);
       foreach (const QString& rule, rules) {

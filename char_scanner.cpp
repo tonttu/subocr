@@ -68,6 +68,13 @@ QImage convexHull(QImage src)
 
 static QMap<QByteArray, QPair<QString, bool>> s_cache;
 
+void compress(QByteArray& data, const QImage& img)
+{
+  QBuffer buffer(&data);
+  buffer.open(QBuffer::WriteOnly);
+  img.save(&buffer, "PPM");
+}
+
 void cacheLoad()
 {
   static bool once = false;
@@ -79,8 +86,10 @@ void cacheLoad()
   const int size = settings.beginReadArray("cache");
   for (int i = 0; i < size; ++i) {
     settings.setArrayIndex(i);
-    s_cache[settings.value("image").toByteArray()] =
-        qMakePair(settings.value("text").toString(), settings.value("italic").toBool());
+    QByteArray data = settings.value("image").toByteArray();
+    QByteArray data2;
+    compress(data2, QImage::fromData(data));
+    s_cache[data2] = qMakePair(settings.value("text").toString(), settings.value("italic").toBool());
   }
   settings.endArray();
 }
@@ -184,9 +193,14 @@ CharScanner::Char CharScanner::scanChar(QPoint p)
 
   if (rect.top() > s_padding) {
     QRect tmp = selectRect(target, rect, rect.top(), rect.top() + s_neighborhood);
-    if (!tmp.isEmpty())
+    if (!tmp.isEmpty()) {
+      if (tmp.width() < 6) {
+        tmp.setLeft(tmp.left()-1);
+        tmp.setRight(tmp.right()+1);
+      }
       mergeScan(target, rect, QRect(tmp.left(), rect.top()-s_padding,
                                     tmp.width(), s_padding));
+    }
   }
 
   if (rect.height() < m_image.height() * 0.8f && rect.bottom() + s_padding < target.rect().bottom()) {
@@ -195,7 +209,10 @@ CharScanner::Char CharScanner::scanChar(QPoint p)
       // colon etc
       int padding = s_padding;
       if (rect.height() < m_image.height() * 0.2f) {
-        padding = target.rect().bottom() - rect.bottom() - 4;
+        float v = std::abs(rect.center().y() - m_image.height()/2) / (0.5f*m_image.height());
+        // exclude dash
+        if (v > 0.2)
+          padding = target.rect().bottom() - rect.bottom() - 2;
       }
       mergeScan(target, rect, QRect(tmp.left(), rect.bottom(),
                                     tmp.width(), padding));
@@ -271,9 +288,7 @@ CharScanner::Char::Char(const QImage& image, const QRect& rect, int left, int ri
     m_right(right)
 {
   cacheLoad();
-  QBuffer buffer(&m_cacheKey);
-  buffer.open(QBuffer::WriteOnly);
-  m_image.save(&buffer, "PNG");
+  compress(m_cacheKey, m_image);
 }
 
 CharScanner::Char::Char(const QString& text, bool italic)

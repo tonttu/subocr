@@ -19,38 +19,30 @@ if ARGV.size != 7
   exit 0
 end
 
-diff1 = ARGV[1].to_i / 1000.0
-diff2 = ARGV[4].to_i / 1000.0
-
 episode = 0
 basename = ARGV[0].sub(/E(\d\d)/) do |b|
   episode = $1.to_i
   'E%02d'
 end
 
-s1 = ARGV[2].to_i * 60 + ARGV[3].to_f
-s2 = ARGV[5].to_i * 60 + ARGV[6].to_f
+$diff1 = -ARGV[1].to_i / 1000.0
+$diff2 = -ARGV[4].to_i / 1000.0
 
-time = s2 - s1
-diff = diff2 - diff1
+$s1 = ARGV[2].to_i * 60 + ARGV[3].to_f
+$s2 = ARGV[5].to_i * 60 + ARGV[6].to_f
 
-diff_per_second = diff / (time-diff)
-
-$shift = (diff1 - s1 * diff_per_second) * 1000.0
-
-$factor = 1.0 + diff_per_second
+$k = ($s2+$diff2 - ($s1+$diff1)) / ($s2 - $s1)
+def sub_to_video s
+  (s - $s1 - $diff1 + $k * $s1) / $k
+end
 
 def tt t
-  t = t.to_i
+  t = (t*1000).round
   t = 1000 if t < 1000 # some players crash without this
   c = t % 60000
   t /= 60000
   b = t % 60
   "%02d:%02d:%06.3f" % [t / 60, b, c*0.001]
-end
-
-def apply t
-  t * $factor + $shift
 end
 
 data = $stdin.read
@@ -62,9 +54,9 @@ start = 0
 File.read('titles').strip.split(/[\r\n]+/).map do |line|
   title, len = line.split
   title = title.to_i
-  len = len.to_f * 1000
-  break if len < 600000
-  titles << {:title => title, :len => len, :start => start, :stop => start + len, :subnum => 0, :start2 => start*$factor}
+  len = len.to_f
+  break if len < 600
+  titles << {:title => title, :len => len, :start => start, :stop => start + len, :subnum => 0, :start2 => sub_to_video(start)-sub_to_video(0)}
   start += len
 end
 
@@ -73,11 +65,11 @@ output = []
 data.split(/\n\s*\n(\n\s)*/).each_with_index do |s, i|
   if s =~ /^\d+\n(\d*):(\d*):([\d,.]*)\s*-->\s*(\d*):(\d*):([\d,.]*)/
     begin
-      start = $1.to_i*3600000 + $2.to_i * 60000 + ($3.tr(',', '.').to_f * 1000).to_i
-      stop = $4.to_i*3600000 + $5.to_i * 60000 + ($6.tr(',', '.').to_f * 1000).to_i
+      start = $1.to_i*3600 + $2.to_i * 60 + $3.tr(',', '.').to_f
+      stop = $4.to_i*3600 + $5.to_i * 60 + $6.tr(',', '.').to_f
 
-      start2 = apply(start)
-      stop2 = apply(stop)
+      start2 = sub_to_video(start)
+      stop2 = sub_to_video(stop)
 
       txt = File.read(s.split("\n")[2..-1].join).split(/[\r\n]+/).join(newline)
 
@@ -92,14 +84,14 @@ data.split(/\n\s*\n(\n\s)*/).each_with_index do |s, i|
   end
 end
 
-margin = 30000
+margin = 30
 titles.each_with_index do |t, i|
   t[:file] = File.open(basename % (i + episode), "wb")
 end
 
 output.each do |start, stop, start2, stop2, txt|
   titles.each do |t|
-    if start - margin < t[:stop] && stop + margin > t[:start] && stop2-t[:start2] > 1000
+    if start - margin < t[:stop] && stop + margin > t[:start] && stop2-t[:start2] > 1
       ts = "%s --> %s" % [tt(start2-t[:start2]), tt(stop2-t[:start2])]
       t[:file].print "#{t[:subnum] += 1}#{newline}"
       t[:file].print "#{ts.gsub('.', ',')}#{newline}"

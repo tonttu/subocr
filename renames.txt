@@ -4,5 +4,11 @@
 \.:n	:n
 1 ,	1,
 ([A-ZÅÄÖ]{2})l	\1I
+ll([A-ZÅÄÖ])	II\1
 l([A-ZÅÄÖ])	I\1
 - l	- I
+lndonesia	Indonesia
+lsoveli	Isoveli
+([.?!]) l	\1 I
+\.lle	:lle
+HR T	HRT

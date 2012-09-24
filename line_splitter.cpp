@@ -29,7 +29,7 @@ namespace LineSplitter
         ++height;
       r.setHeight(height);
 
-      if (height > 65 && height < 75) {
+      if (height > 60 && height < 80) {
         lines += splitPath(img.copy(r));
       } else {
         lines << img.copy(r);
