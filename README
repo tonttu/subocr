@@ -1,0 +1,40 @@
+Subocr is a simple OCR software and collection of scripts that convert DVD
+subtitles to .srt text files. Currently it works almost flawlessly with Finnish
+subtitles including italic fonts and characters like åäö. Application includes a
+GUI that will request user input if an unknown character (or in some cases when
+characters can't be distinguished properly, a string) is detected. Program will
+then learn from the user feedback and continue working, so it can be used with
+any language or character set. Of course, the algorithm is pretty simple and
+design pretty much ad-hoc, it might not work so well with all languages and
+fonts - but it still works much better than any program that I got to work in
+Linux [in September 2012].
+
+I'm not providing the font detection database, but it will be generated
+automatically on the fly, you just need to type in the character you see on the
+screen. It will take couple of minutes per font to type all the needed
+characters.
+
+A script supplied with the program automatically generates individual .srt file
+for each title in the DVD, optionally resyncing the subtitles to another video
+source. Generating those subtitle files do not require user interaction, if
+resyncing isn't necessary, ripping one DVD takes about 5-10 minutes. (Might be
+worth mentioning that the subtitle index is hard-coded to the script, if
+someone cares, it could be fixed)
+
+The whole application isn't really polished, it was written in one weekend for
+converting a batch of DVD subtitles. Setting it up might need some dark magic.
+
+This application uses dvdbackup[1], mplayer version of libdvdread[2] and
+libdvdcss[3] for working around stupid DVD encryptions and other issues designed
+to make consumers bitter. It uses some parts of subtitleripper[4] to convert DVD
+subtitle track to image series and extract timing information.
+
+Copyright © 2012 Riku Palomäki
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License version 3 as published by
+the Free Software Foundation.
+
+[1] http://dvdbackup.sourceforge.net/
+[2] http://www.mplayerhq.hu/
+[3] http://www.videolan.org/developers/libdvdcss.html
+[4] http://subtitleripper.sourceforge.net/
